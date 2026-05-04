@@ -256,7 +256,7 @@ export default function Home() {
                       <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3">
                         <div className="uppercase tracking-[0.22em] text-slate-500">Length</div>
                         <div className="mt-1 text-base font-semibold text-white">
-                          {responseData.circuit.length}
+                          {responseData.circuit.length - 1}
                         </div>
                       </div>
                       <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3">
