@@ -21,6 +21,10 @@
 backend/build/
 backend/.vscode/
 
+# build
+build/
+.vscode/
+
 # misc
 .DS_Store
 *.pem
