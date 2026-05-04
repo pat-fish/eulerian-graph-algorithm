@@ -36,13 +36,78 @@ crow::response make_cors_json_response(const crow::json::wvalue& body) {
     return res;
 }
 
+bool is_valid_eulerian_digraph(const vector<vector<int>>& adj) {
+    int n = static_cast<int>(adj.size());
+    if (n == 0) {
+        return false;
+    }
+
+    vector<int> indegree(n, 0);
+    vector<int> outdegree(n, 0);
+    vector<vector<int>> reverseAdj(n);
+
+    for (int u = 0; u < n; ++u) {
+        outdegree[u] = static_cast<int>(adj[u].size());
+        for (int v : adj[u]) {
+            if (v < 0 || v >= n) {
+                return false;
+            }
+            ++indegree[v];
+            reverseAdj[v].push_back(u);
+        }
+    }
+
+    for (int i = 0; i < n; ++i) {
+        if (indegree[i] != outdegree[i]) {
+            return false;
+        }
+    }
+
+    auto dfs_reachable_count = [n](const vector<vector<int>>& graph) {
+        vector<char> visited(n, false);
+        vector<int> stack;
+        stack.push_back(0);
+        visited[0] = true;
+
+        int count = 0;
+        while (!stack.empty()) {
+            int node = stack.back();
+            stack.pop_back();
+            ++count;
+
+            for (int next : graph[node]) {
+                if (!visited[next]) {
+                    visited[next] = true;
+                    stack.push_back(next);
+                }
+            }
+        }
+
+        return count;
+    };
+
+    if (dfs_reachable_count(adj) != n) {
+        return false;
+    }
+
+    if (dfs_reachable_count(reverseAdj) != n) {
+        return false;
+    }
+
+    return true;
+}
+
 vector<int> get_circuit(vector<vector<int>> &adj) {
     // need to check that adj is strongly connected and outdegree=indegree for all v
-
+    
     int n = adj.size();
 
     // check adj is not trivial
     if (n == 0) {
+        return {};
+    }
+
+    if (!is_valid_eulerian_digraph(adj)) {
         return {};
     }
 
@@ -104,6 +169,20 @@ int main()
                 edges.push_back(static_cast<int>(value.i()));
             }
             adj.push_back(std::move(edges));
+        }
+
+        if (adj.size() == 0) {
+            return make_cors_text_response(
+                400,
+                "Graph is the trivial graph"
+            ); 
+        }
+
+        if (!is_valid_eulerian_digraph(adj)) {
+            return make_cors_text_response(
+                400,
+                "Graph must be strongly connected and have indegree == outdegree for every node"
+            );
         }
 
         vector<int> ans = get_circuit(adj);
