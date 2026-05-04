@@ -2,11 +2,12 @@
 
 import { FormEvent, useMemo, useState } from "react";
 
-const defaultGraph = `[
-  [1],
-  [2],
-  [0]
-]`;
+const defaultGraph = 
+`[[1, 2, 3, 4],
+[0, 2, 3, 4],
+[0, 1, 3, 4],
+[0, 1, 2, 4],
+[0, 1, 2, 3]]`;
 
 function formatResponseBody(body: string) {
   try {
@@ -15,6 +16,10 @@ function formatResponseBody(body: string) {
     return body;
   }
 }
+
+type CircuitResponse = {
+  circuit?: unknown;
+};
 
 function getGraphVisualization(graph: number[][]) {
   const width = 720;
@@ -67,7 +72,7 @@ export default function Home() {
   const [graphJson, setGraphJson] = useState(defaultGraph);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [responseText, setResponseText] = useState<string>("No response yet.");
+  const [responseData, setResponseData] = useState<{ circuit: number[]; raw: string } | null>(null);
 
   const parsedGraph = useMemo(() => {
     try {
@@ -134,14 +139,29 @@ export default function Home() {
         throw new Error(bodyText || `Request failed with status ${response.status}`);
       }
 
-      setResponseText(formatResponseBody(bodyText));
+      let body: CircuitResponse;
+
+      try {
+        body = JSON.parse(bodyText) as CircuitResponse;
+      } catch {
+        throw new Error("The backend did not return valid JSON.");
+      }
+
+      if (!Array.isArray(body.circuit) || !body.circuit.every((value) => Number.isInteger(value))) {
+        throw new Error("Unexpected response shape. Expected { circuit: number[] }.");
+      }
+
+      setResponseData({
+        circuit: body.circuit,
+        raw: formatResponseBody(JSON.stringify(body)),
+      });
     } catch (requestError) {
       setError(
         requestError instanceof Error
           ? requestError.message
           : "Unable to reach the API endpoint.",
       );
-      setResponseText("No successful response yet.");
+      setResponseData(null);
     } finally {
       setLoading(false);
     }
@@ -220,9 +240,48 @@ export default function Home() {
                 </span>
               </div>
 
-              <pre className="mt-3 min-h-0 flex-1 overflow-auto rounded-3xl border border-white/10 bg-slate-900/90 p-3 font-mono text-xs leading-5 text-emerald-200">
-                {responseText}
-              </pre>
+              <div className="mt-3 min-h-0 flex-1 overflow-auto rounded-3xl border border-white/10 bg-slate-900/90 p-3 font-mono text-xs leading-5 text-emerald-200">
+                {responseData ? (
+                  <div className="flex flex-col gap-3 text-slate-100">
+                    <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-3">
+                      <div className="text-[10px] uppercase tracking-[0.28em] text-cyan-200/80">
+                        Eulerian circuit
+                      </div>
+                      <div className="mt-2 text-sm font-semibold text-white">
+                        {responseData.circuit.join(" → ")}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-2 text-[11px] text-slate-300 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3">
+                        <div className="uppercase tracking-[0.22em] text-slate-500">Length</div>
+                        <div className="mt-1 text-base font-semibold text-white">
+                          {responseData.circuit.length}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3">
+                        <div className="uppercase tracking-[0.22em] text-slate-500">Shape</div>
+                        <div className="mt-1 text-base font-semibold text-white">
+                          {responseData.circuit.length ? "circuit" : "empty"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <details className="rounded-2xl border border-white/10 bg-slate-950/60 p-3">
+                      <summary className="cursor-pointer select-none text-[11px] uppercase tracking-[0.22em] text-slate-400">
+                        Raw JSON
+                      </summary>
+                      <pre className="mt-3 whitespace-pre-wrap break-words text-[11px] leading-5 text-slate-300">
+                        {responseData.raw}
+                      </pre>
+                    </details>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3 text-slate-400">
+                    No successful response yet.
+                  </div>
+                )}
+              </div>
             </section>
 
             <section className="flex min-h-0 flex-1 flex-col rounded-3xl border border-white/10 bg-linear-to-br from-cyan-400/10 via-white/5 to-emerald-400/10 p-4 shadow-2xl shadow-slate-950/30 backdrop-blur-xl sm:p-5">
