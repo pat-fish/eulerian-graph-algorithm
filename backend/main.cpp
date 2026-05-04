@@ -5,6 +5,37 @@
 
 using namespace std;
 
+static constexpr const char* kAllowedOrigin = "http://localhost:3000";
+
+void add_cors_headers(crow::response& res) {
+    res.add_header("Access-Control-Allow-Origin", kAllowedOrigin);
+    res.add_header("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.add_header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.add_header("Access-Control-Max-Age", "86400");
+    res.add_header("Vary", "Origin");
+}
+
+struct CorsMiddleware {
+    struct context {};
+
+    void before_handle(crow::request&, crow::response&, context&) const {}
+
+    void after_handle(crow::request&, crow::response& res, context&) const {
+        add_cors_headers(res);
+    }
+};
+
+crow::response make_cors_text_response(int code, const string& body) {
+    crow::response res(code, body);
+    return res;
+}
+
+crow::response make_cors_json_response(const crow::json::wvalue& body) {
+    crow::response res(body.dump());
+    res.set_header("Content-Type", "application/json");
+    return res;
+}
+
 vector<int> get_circuit(vector<vector<int>> &adj) {
     // need to check that adj is strongly connected and outdegree=indegree for all v
 
@@ -47,13 +78,13 @@ vector<int> get_circuit(vector<vector<int>> &adj) {
 
 int main()
 {
-    crow::SimpleApp app;
+    crow::App<CorsMiddleware> app;
 
     CROW_ROUTE(app, "/").methods(crow::HTTPMethod::POST)(
         [](const crow::request& req){
         auto payload = crow::json::load(req.body);
         if (!payload || payload.t() != crow::json::type::List) {
-            return crow::response(400, "Expected JSON array of arrays");
+            return make_cors_text_response(400, "Expected JSON array of arrays");
         }
 
         vector<vector<int>> adj;
@@ -61,14 +92,14 @@ int main()
 
         for (const auto& row : payload) {
             if (row.t() != crow::json::type::List) {
-                return crow::response(400, "Each row must be a JSON array");
+                return make_cors_text_response(400, "Each row must be a JSON array");
             }
 
             vector<int> edges;
             edges.reserve(row.size());
             for (const auto& value : row) {
                 if (value.t() != crow::json::type::Number) {
-                    return crow::response(400, "Adjacency values must be numbers");
+                    return make_cors_text_response(400, "Adjacency values must be numbers");
                 }
                 edges.push_back(static_cast<int>(value.i()));
             }
@@ -76,16 +107,14 @@ int main()
         }
 
         vector<int> ans = get_circuit(adj);
-        ostringstream os;
-        os << "[";
-        for (size_t i = 0; i < ans.size(); ++i) {
-            if (i > 0) {
-                os << ", ";
-            }
-            os << ans[i];
+        crow::json::wvalue result;
+        crow::json::wvalue::list circuitJson;
+        for (int v : ans) {
+            circuitJson.emplace_back(v);
         }
-        os << "]";
-        return crow::response(os.str());
+        result["circuit"] = std::move(circuitJson);
+
+        return make_cors_json_response(result);
     });
 
     app.port(18080).multithreaded().run();
