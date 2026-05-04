@@ -4,7 +4,8 @@
 using namespace std;
 
 struct graph {
-    unordered_map<int, int[]> 
+    unordered_map<int, int[]> adj_list;
+    
 }   
 
 int main()
